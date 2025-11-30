@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { IApiRequest, RequestMethods } from "@/types/request.types";
 import { ChevronDown, ChevronUp, Plus, Send, X } from "lucide-react";
 import { Label } from "../ui/label";
@@ -22,7 +22,17 @@ import {
 } from "@/components/ui/collapsible";
 import { useAPIRequest } from "@/hooks/useAPIRequest";
 
-export function QueryPanel() {
+interface responseCallbackProps {
+  responseCallback: (
+    response : {
+      data: any,
+      isLoading: boolean,
+      error?: Error | null
+    }
+  ) => void
+}
+
+export function QueryPanel({ responseCallback } : responseCallbackProps) {
   const [requestCallMethod, setRequestCallMethod] = useState<IApiRequest["method"]>("GET");
   const [requestURL, setReqestURL] = useState<string>(
     "https://api.github.com/users/octocat",
@@ -31,7 +41,6 @@ export function QueryPanel() {
   const [requestHeaders, setRequestHeaders] = useState<Array<{ key: string; value: string }>>([]);
   const [bodyOpen, setBodyOpen] = useState<boolean>(false);
   const [headersOpen, setHeadersOpen] = useState<boolean>(false);
-  const [isLoading, setLoading] = useState<boolean>(false);
 
   // compute headersObj BEFORE calling useAPIRequest
   const headersObj = Object.fromEntries(
@@ -51,13 +60,23 @@ export function QueryPanel() {
     }
   })();
 
-  const { data, refetch, mutate, isFetching, mutateReponseData, mutateStatePending } = useAPIRequest({
+  const { data, refetch, mutate, isFetching, queryError, mutateResponseData, mutateStatePending, mutateStateError } = useAPIRequest({
     url: requestURL,
     method: requestCallMethod,
     headers: headersObj,
     body: parsedBody,
     enabled: false
   })
+
+  //we need to use effects to handle the lift data up pattern whenever the data changes.
+  useEffect(() => {
+    console.log("inside the queryPanel useEffect");
+    responseCallback({
+      data: data || mutateResponseData,
+      isLoading: isFetching || mutateStatePending,
+      error: queryError || mutateStateError
+    })
+  }, [data, isFetching, queryError, mutateResponseData, mutateStatePending, mutateStateError, responseCallback])
 
   /**Event Handlers for Headers */
   const handleAddHeaders = () => {
@@ -81,19 +100,19 @@ export function QueryPanel() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (requestCallMethod === "GET") refetch();
-    mutate();
+    else mutate();
   };
 
   return (
     <>
-      <div className="flex flex-col gap-4 overflow-y-auto">
-        <Card className="bg-card  border-[#3B82F6]/20 rounded-xl p-3">
+      <div className="flex flex-col gap-2 overflow-y-auto">
+        <Card className="bg-card  border-[#3B82F6]/20 rounded-xl px-1.5">
           {/*Title*/}
           <CardTitle className="font-bold text-xl px-1.5">
             New Request
           </CardTitle>
 
-          <CardContent className="px-1.5">
+          <CardContent className="px-1">
             <form onSubmit={handleSubmit}>
               <div className="flex flex-row">
                 {/*Method Heading*/}
@@ -213,18 +232,18 @@ export function QueryPanel() {
               <Button
                 variant="default"
                 type="submit"
-                className="w-full bg-primary mx-auto mb-5"
+                className="w-full bg-primary mx-auto pb-1.5"
                 disabled={isFetching || mutateStatePending}
               >
                 <Send className="w-4 h-4 mr-2" />
                 {(isFetching || mutateStatePending) ? "Sending..." : "Send Request"}
               </Button>
 
-              {(data || mutateReponseData)  && (
+              {/* {(data || mutateResponseData)  && (
                 <div className="mt-4 bg-gray-100 p-2 text-mono text-black rounded overflow-x-auto">
-                  {JSON.stringify(data, null, 2)} {JSON.stringify(mutateReponseData, null, 2)}
+                  {JSON.stringify(data, null, 2)} {JSON.stringify(mutateResponseData, null, 2)}
                 </div>
-              )}
+              )} */}
             </form>
           </CardContent>
         </Card>
